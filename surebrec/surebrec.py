@@ -26,8 +26,16 @@ from pprint import pformat
 from random import choice, choices, getrandbits, randint, seed, uniform
 from string import printable
 from types import GeneratorType
-from typing import (Any, Callable, Generic, Literal, LiteralString, Type,
-                    TypedDict, TypeVar)
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Literal,
+    LiteralString,
+    Type,
+    TypedDict,
+    TypeVar,
+)
 from uuid import UUID
 
 from cerberus import Validator
@@ -39,28 +47,37 @@ _LOG_DEBUG: bool = _logger.isEnabledFor(DEBUG)
 
 # Types
 # Value range types
-T = TypeVar('T', int, float, date, datetime)
+T = TypeVar("T", int, float, date, datetime)
 
 
 class ValueLimits(TypedDict, Generic[T]):
     """Specify a valid range for the mapped Cerberus type."""
+
     min: T
     max: T
 
 
 class SequenceLimits(TypedDict):
     """Restrictions on sequence generation if not specified in the schema."""
+
     maxlength: int
 
 
 class ContainerLimits(TypedDict):
     """Restrictions on container generation if not specified in the schema."""
+
     maxelements: int
 
 
 class Limits(TypedDict):
     """Limits for generation of data."""
-    general: dict[Literal['rare_events_one_in_x', 'max_nested_containers', 'random_schema_maxlength'], int]
+
+    general: dict[
+        Literal[
+            "rare_events_one_in_x", "max_nested_containers", "random_schema_maxlength"
+        ],
+        int,
+    ]
     boolean: dict[LiteralString, Any]
     binary: SequenceLimits
     date: ValueLimits[date]
@@ -84,61 +101,42 @@ class Limits(TypedDict):
 MAX_LENGTH = 32
 MAX_ELEMENTS = 128
 LIMITS: Limits = {
-    'general': {
-        'rare_events_one_in_x': 1000,
-        'max_nested_containers': 3,
-        'random_schema_maxlength': 16
+    "general": {
+        "rare_events_one_in_x": 1000,
+        "max_nested_containers": 3,
+        "random_schema_maxlength": 16,
     },
-    'boolean': {
-    },
-    'binary': {
-        'maxlength': MAX_LENGTH
-
-    },
-    'date': {
-        'min': date.min,
-        'max': date.max
-    },
-    'datetime': {
-        'min': datetime.min,
-        'max': datetime.max
-    },
-    'dict': {
-        'maxelements': MAX_ELEMENTS
-    },
-    'float': {
-        'min': -1.7976931348623157e+308,
-        'max': 1.7976931348623157e+308
-    },
-    'integer': {
-        'min': -2**63,
-        'max': 2**63 - 1
-    },
-    'number': {
-        'min': -1.7976931348623157e+308,
-        'max': 1.7976931348623157e+308
-    },
-    'list': {
-        'maxelements': MAX_ELEMENTS
-    },
-    'set': {
-        'maxelements': MAX_ELEMENTS
-    },
-    'string': {
-        'maxlength': MAX_LENGTH
-    },
-    'uuid': {
-    }
+    "boolean": {},
+    "binary": {"maxlength": MAX_LENGTH},
+    "date": {"min": date.min, "max": date.max},
+    "datetime": {"min": datetime.min, "max": datetime.max},
+    "dict": {"maxelements": MAX_ELEMENTS},
+    "float": {"min": -1.7976931348623157e308, "max": 1.7976931348623157e308},
+    "integer": {"min": -(2**63), "max": 2**63 - 1},
+    "number": {"min": -1.7976931348623157e308, "max": 1.7976931348623157e308},
+    "list": {"maxelements": MAX_ELEMENTS},
+    "set": {"maxelements": MAX_ELEMENTS},
+    "string": {"maxlength": MAX_LENGTH},
+    "uuid": {},
 }
 
 DEFAULT_KEYSRULES: dict[str, list[str]] = {
-    'type': ['boolean', 'integer', 'float', 'date', 'datetime', 'number', 'string', 'uuid'],
+    "type": [
+        "boolean",
+        "integer",
+        "float",
+        "date",
+        "datetime",
+        "number",
+        "string",
+        "uuid",
+    ],
 }
 
 
 def _rare_event() -> bool:
     """True if a rare event occurs."""
-    return not randint(0, LIMITS['general']['rare_events_one_in_x'] - 1)
+    return not randint(0, LIMITS["general"]["rare_events_one_in_x"] - 1)
 
 
 def _generate_base(constraints: dict) -> tuple[bool, Any]:
@@ -153,53 +151,59 @@ def _generate_base(constraints: dict) -> tuple[bool, Any]:
     -------
     (value_set: bool, value: Any) If value_set is True value represents the value generated.
     """
-    coerce: Callable = constraints.get('coerce', lambda x: x)
-    if 'allowed' in constraints:
-        _logger.debug('Value chosen from allowed values.')
-        return (True, coerce(choice(constraints['allowed'])))
-    if 'default' in constraints and _rare_event():
-        _logger.debug('Value set to the default.')
-        return (True, coerce(constraints['default'])) if constraints['default'] is not None else (True, None)
-    if constraints.get('nullable', False) and _rare_event():
-        _logger.debug('Value set to None.')
+    coerce: Callable = constraints.get("coerce", lambda x: x)
+    if "allowed" in constraints:
+        _logger.debug("Value chosen from allowed values.")
+        return (True, coerce(choice(constraints["allowed"])))
+    if "default" in constraints and _rare_event():
+        _logger.debug("Value set to the default.")
+        return (
+            (True, coerce(constraints["default"]))
+            if constraints["default"] is not None
+            else (True, None)
+        )
+    if constraints.get("nullable", False) and _rare_event():
+        _logger.debug("Value set to None.")
         return (True, None)
     return (False, None)
 
 
 def _generate_boolean(constraints: dict, _: int = 0) -> bool | None:
-    _logger.debug('Generating bool value.')
+    _logger.debug("Generating bool value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     return common_tuple[1] if common_tuple[0] else bool(randint(0, 1))
 
 
 def _generate_binary(constraints: dict, _: int = 0) -> bytes | bytearray | None:
-    _logger.debug('Generating binary value.')
+    _logger.debug("Generating binary value.")
     retype: Type[bytes] | Type[bytearray] = choice((bytes, bytearray))
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minlength: int = constraints.get('minlength', 0)
-    maxlength: int = constraints.get('maxlength', LIMITS['binary']['maxlength'])
-    return retype(bytearray(getrandbits(8) for _ in range(randint(minlength, maxlength))))
+    minlength: int = constraints.get("minlength", 0)
+    maxlength: int = constraints.get("maxlength", LIMITS["binary"]["maxlength"])
+    return retype(
+        bytearray(getrandbits(8) for _ in range(randint(minlength, maxlength)))
+    )
 
 
 def _generate_date(constraints: dict, _: int = 0) -> date:
-    _logger.debug('Generating date value.')
+    _logger.debug("Generating date value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minval: date = constraints.get('min', LIMITS['date']['min'])
-    maxval: date = constraints.get('max', LIMITS['date']['max'])
+    minval: date = constraints.get("min", LIMITS["date"]["min"])
+    maxval: date = constraints.get("max", LIMITS["date"]["max"])
     return minval + timedelta(randint(0, (maxval - minval).days))
 
 
 def _generate_datetime(constraints: dict, _: int = 0) -> datetime | None:
-    _logger.debug('Generating datetime value.')
+    _logger.debug("Generating datetime value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minval: datetime = constraints.get('min', LIMITS['datetime']['min'])
-    maxval: datetime = constraints.get('max', LIMITS['datetime']['max'])
+    minval: datetime = constraints.get("min", LIMITS["datetime"]["min"])
+    maxval: datetime = constraints.get("max", LIMITS["datetime"]["max"])
     delta: timedelta = maxval - minval
     days: int = randint(0, delta.days)
     seconds: int = randint(0, delta.seconds)
@@ -210,89 +214,119 @@ def _generate_datetime(constraints: dict, _: int = 0) -> datetime | None:
 def _generate_dict(constraints: dict, depth: int = 0) -> dict | None:
     # As per https://docs.python-cerberus.org/en/stable/validation-rules.html#empty
     # emptiness is not checked if not defined thus only allowed by the validation (generation) rules
-    _logger.debug('Generating dictionary container.')
-    if constraints.get('empty', False) and _rare_event():
-        _logger.debug('dict set to empty.')
+    _logger.debug("Generating dictionary container.")
+    if constraints.get("empty", False) and _rare_event():
+        _logger.debug("dict set to empty.")
         return {}
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minlength: int = constraints.get('minlength', 0)
-    maxlength: int = constraints.get('maxlength', LIMITS['general']['random_schema_maxlength'])
-    if 'schema' in constraints:
-        _logger.debug('dict has a schema.')
-        schema: dict[str, Any] = constraints['schema']
-        if 'valuesrules' in constraints:
-            _logger.debug('Merging valuerules with schema definitions.')
+    minlength: int = constraints.get("minlength", 0)
+    maxlength: int = constraints.get(
+        "maxlength", LIMITS["general"]["random_schema_maxlength"]
+    )
+    if "schema" in constraints:
+        _logger.debug("dict has a schema.")
+        schema: dict[str, Any] = constraints["schema"]
+        if "valuesrules" in constraints:
+            _logger.debug("Merging valuerules with schema definitions.")
             for definition in schema.values():
-                definition.update(constraints['valuesrules'])
+                definition.update(constraints["valuesrules"])
     else:
-        _logger.debug('dict has no schema.')
-        schema = _random_dict_schema(constraints.get('keysrules'), constraints.get('valuesrules'), minlength, maxlength, depth + 1)
+        _logger.debug("dict has no schema.")
+        schema = _random_dict_schema(
+            constraints.get("keysrules"),
+            constraints.get("valuesrules"),
+            minlength,
+            maxlength,
+            depth + 1,
+        )
     _dict: dict = {}
     for field, definition in schema.items():
-        required: bool = definition.get('required', False) or schema.get('require_all', False) or (not definition.get(
-                'required', False) and not _rare_event()) or definition.get('meta', {}).get('defined', False)
-        readonly: bool = definition.get('readonly', False) and not ('default' in definition or 'default_setter' in definition)
+        required: bool = (
+            definition.get("required", False)
+            or schema.get("require_all", False)
+            or (not definition.get("required", False) and not _rare_event())
+            or definition.get("meta", {}).get("defined", False)
+        )
+        readonly: bool = definition.get("readonly", False) and not (
+            "default" in definition or "default_setter" in definition
+        )
         if _LOG_DEBUG:
-            _logger.debug(f"dict field '{field}' required = {required}, readonly = {readonly}.")
+            _logger.debug(
+                f"dict field '{field}' required = {required}, readonly = {readonly}."
+            )
         if required and not readonly:
-            _type: str = definition['type'] if not isinstance(definition['type'], list) else choice(definition['type'])
+            _type: str = (
+                definition["type"]
+                if not isinstance(definition["type"], list)
+                else choice(definition["type"])
+            )
             _dict[field] = TYPE_GENERATION[_type](definition, depth + 1)
     return _dict
 
 
 def _generate_float(constraints: dict, _: int = 0) -> float | None:
-    _logger.debug('Generating float value.')
+    _logger.debug("Generating float value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minval: float = constraints.get('min', LIMITS['float']['min'])
-    maxval: float = constraints.get('max', LIMITS['float']['max'])
+    minval: float = constraints.get("min", LIMITS["float"]["min"])
+    maxval: float = constraints.get("max", LIMITS["float"]["max"])
     return uniform(minval, maxval)
 
 
 def _generate_integer(constraints: dict, _: int = 0) -> int | None:
-    _logger.debug('Generating integer value.')
+    _logger.debug("Generating integer value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minval: int = constraints.get('min', LIMITS['integer']['min'])
-    maxval: int = constraints.get('max', LIMITS['integer']['max'])
+    minval: int = constraints.get("min", LIMITS["integer"]["min"])
+    maxval: int = constraints.get("max", LIMITS["integer"]["max"])
     return randint(minval, maxval)
 
 
 def _generate_list(constraints: dict, depth: int = 0) -> list | None:
     # As per https://docs.python-cerberus.org/en/stable/validation-rules.html#empty
     # emptiness is not checked if not defined thus only allowed by the validation (generation) rules
-    if constraints.get('empty', False) and _rare_event():
-        _logger.debug('list set to empty.')
+    if constraints.get("empty", False) and _rare_event():
+        _logger.debug("list set to empty.")
         return []
-    _logger.debug('Generating list container.')
+    _logger.debug("Generating list container.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    if 'items' in constraints:
+    if "items" in constraints:
         _list: list[Any] = []
-        _logger.debug('list generated from item constraints')
-        for schema in constraints['items']:
-            _type: str = schema['type'] if not isinstance(schema['type'], list) else choice(schema['type'])
+        _logger.debug("list generated from item constraints")
+        for schema in constraints["items"]:
+            _type: str = (
+                schema["type"]
+                if not isinstance(schema["type"], list)
+                else choice(schema["type"])
+            )
             _list.append(TYPE_GENERATION[_type](schema, depth + 1))
         return _list
-    if 'schema' in constraints:
-        _logger.debug('list randomly determined from schema.')
-        schema: dict[str, Any] = constraints['schema']
+    if "schema" in constraints:
+        _logger.debug("list randomly determined from schema.")
+        schema: dict[str, Any] = constraints["schema"]
     else:
-        _logger.debug('list randomly determined from random schema.')
+        _logger.debug("list randomly determined from random schema.")
         schema = _random_list_schema(depth + 1)
     _list = []
-    minlength: int = constraints.get('minlength', 0)
-    maxlength: int = constraints.get('maxlength', LIMITS['general']['random_schema_maxlength'])
+    minlength: int = constraints.get("minlength", 0)
+    maxlength: int = constraints.get(
+        "maxlength", LIMITS["general"]["random_schema_maxlength"]
+    )
     num: int = randint(minlength, maxlength)
     if _LOG_DEBUG:
         _logger.debug(f"Randomly choosing {num} elements.")
     for _ in range(num):
-        _type = schema['type'] if not isinstance(schema['type'], list) else choice(schema['type'])
+        _type = (
+            schema["type"]
+            if not isinstance(schema["type"], list)
+            else choice(schema["type"])
+        )
         _list.append(TYPE_GENERATION[_type](schema, depth + 1))
     return _list
 
@@ -304,18 +338,28 @@ def _generate_number(constraints: dict, depth: int = 0) -> float | int | None:
 def _generate_set(constraints: dict, depth: int = 0) -> set | None:
     # As per https://docs.python-cerberus.org/en/stable/validation-rules.html#empty
     # emptiness is not checked if not defined thus only allowed by the validation (generation) rules
-    if constraints.get('empty', False) and _rare_event():
+    if constraints.get("empty", False) and _rare_event():
         return set()
-    _logger.debug('Generating set container.')
+    _logger.debug("Generating set container.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    minlength: int = constraints.get('minlength', 0)
-    maxlength: int = constraints.get('maxlength', LIMITS['general']['random_schema_maxlength'])
-    schema: dict[str, Any] = constraints['schema'] if 'schema' in constraints else _random_list_schema(depth + 1, True)
+    minlength: int = constraints.get("minlength", 0)
+    maxlength: int = constraints.get(
+        "maxlength", LIMITS["general"]["random_schema_maxlength"]
+    )
+    schema: dict[str, Any] = (
+        constraints["schema"]
+        if "schema" in constraints
+        else _random_list_schema(depth + 1, True)
+    )
     _set: set[Any] = set()
     for _ in range(randint(minlength, maxlength)):
-        _type: str = schema['type'] if not isinstance(schema['type'], list) else choice(schema['type'])
+        _type: str = (
+            schema["type"]
+            if not isinstance(schema["type"], list)
+            else choice(schema["type"])
+        )
         _set.add(TYPE_GENERATION[_type](schema, depth + 1))
     return _set
 
@@ -323,21 +367,21 @@ def _generate_set(constraints: dict, depth: int = 0) -> set | None:
 def _generate_string(constraints: dict, _: int = 0) -> str | None:
     # As per https://docs.python-cerberus.org/en/stable/validation-rules.html#empty
     # emptiness is not checked if not defined thus only allowed by the validation (generation) rules
-    if constraints.get('empty', False) and _rare_event():
-        return ''
-    _logger.debug('Generating string value.')
+    if constraints.get("empty", False) and _rare_event():
+        return ""
+    _logger.debug("Generating string value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
-    if 'regex' in constraints:
-        return getone(constraints['regex'])
-    minlength: int = constraints.get('minlength', 0)
-    maxlength: int = constraints.get('maxlength', LIMITS['string']['maxlength'])
-    return ''.join(choices(printable, k=randint(minlength, maxlength)))
+    if "regex" in constraints:
+        return getone(constraints["regex"])
+    minlength: int = constraints.get("minlength", 0)
+    maxlength: int = constraints.get("maxlength", LIMITS["string"]["maxlength"])
+    return "".join(choices(printable, k=randint(minlength, maxlength)))
 
 
 def _generate_uuid(constraints: dict, _: int = 0) -> UUID | None:
-    _logger.debug('Generating UUID value.')
+    _logger.debug("Generating UUID value.")
     common_tuple: tuple[bool, Any] = _generate_base(constraints)
     if common_tuple[0]:
         return common_tuple[1]
@@ -345,55 +389,64 @@ def _generate_uuid(constraints: dict, _: int = 0) -> UUID | None:
 
 
 TYPE_GENERATION: dict[str, Callable[(...), Any | None]] = {
-    'boolean': _generate_boolean,
-    'binary': _generate_binary,
-    'date': _generate_date,
-    'datetime': _generate_datetime,
-    'dict': _generate_dict,
-    'float': _generate_float,
-    'integer': _generate_integer,
-    'list': _generate_list,
-    'number': _generate_number,
-    'set': _generate_set,
-    'string': _generate_string,
-    'uuid': _generate_uuid,
+    "boolean": _generate_boolean,
+    "binary": _generate_binary,
+    "date": _generate_date,
+    "datetime": _generate_datetime,
+    "dict": _generate_dict,
+    "float": _generate_float,
+    "integer": _generate_integer,
+    "list": _generate_list,
+    "number": _generate_number,
+    "set": _generate_set,
+    "string": _generate_string,
+    "uuid": _generate_uuid,
 }
 TYPES: list[str] = list(TYPE_GENERATION.keys())[0:11]
 
 
 def _type_choices(types: list[str], depth=0, hashable=False) -> dict[str, list[str]]:
-    if depth == LIMITS['general']['max_nested_containers']:
-        if 'dict' in types:
-            types.remove('dict')
-        if 'list' in types:
-            types.remove('list')
-        if 'set' in types:
-            types.remove('set')
+    if depth == LIMITS["general"]["max_nested_containers"]:
+        if "dict" in types:
+            types.remove("dict")
+        if "list" in types:
+            types.remove("list")
+        if "set" in types:
+            types.remove("set")
     if hashable:
-        if 'binary' in types:
-            types.remove('binary')
-        if 'dict' in types:
-            types.remove('dict')
-        if 'list' in types:
-            types.remove('list')
-        if 'set' in types:
-            types.remove('set')
-    return {'type': choices(types, k=randint(1, len(types)))}
+        if "binary" in types:
+            types.remove("binary")
+        if "dict" in types:
+            types.remove("dict")
+        if "list" in types:
+            types.remove("list")
+        if "set" in types:
+            types.remove("set")
+    return {"type": choices(types, k=randint(1, len(types)))}
 
 
-def _random_dict_schema(keysrules: dict[str, Any] | None, valuesrules: dict[str, Any] | None,
-                        minlength: int, maxlength: int, depth=0) -> dict[str, dict[str, Any]]:
+def _random_dict_schema(
+    keysrules: dict[str, Any] | None,
+    valuesrules: dict[str, Any] | None,
+    minlength: int,
+    maxlength: int,
+    depth=0,
+) -> dict[str, dict[str, Any]]:
     if keysrules is None:
-        _logger.debug('Randomly generating dict keyrules.')
+        _logger.debug("Randomly generating dict keyrules.")
         keysrules = DEFAULT_KEYSRULES
-        keysrules['minlength'] = 4
-        keysrules['maxlength'] = LIMITS['general']['random_schema_maxlength']
+        keysrules["minlength"] = 4
+        keysrules["maxlength"] = LIMITS["general"]["random_schema_maxlength"]
     keys: list[Any] = []
     for _ in range(randint(minlength, maxlength)):
-        _type: str = keysrules['type'] if not isinstance(keysrules['type'], list) else choice(keysrules['type'])
+        _type: str = (
+            keysrules["type"]
+            if not isinstance(keysrules["type"], list)
+            else choice(keysrules["type"])
+        )
         keys.append(TYPE_GENERATION[_type](keysrules))
     if valuesrules is None:
-        _logger.debug('Randomly generating dict valuerules.')
+        _logger.debug("Randomly generating dict valuerules.")
         # Only Cerberus native types
         return dict(zip(keys, [_type_choices(list(TYPES), depth) for _ in keys]))
     else:
@@ -408,8 +461,8 @@ def _random_list_schema(depth=0, hashable=False) -> dict[str, list[str]]:
 def _strip_check_with(container: dict | list) -> None:
     """Surebrec does not support 'check_with' behaviour."""
     if isinstance(container, dict):
-        if 'check_with' in container:
-            del container['check_with']
+        if "check_with" in container:
+            del container["check_with"]
         container = list(container.values())
     for value in filter(lambda x: isinstance(x, (dict, list)), container):
         _strip_check_with(value)
@@ -418,10 +471,12 @@ def _strip_check_with(container: dict | list) -> None:
 def _strip_meta(schema: dict) -> None:
     """Surebrec uses the meta field to point to dependencies."""
     for _, definition in schema.items():
-        definition['meta'] = {}
-        typ = definition.get('type')
-        if ((isinstance(typ, (list, tuple, set)) and 'dict' in typ) or typ == 'dict') and ('schema' in definition):
-            _strip_meta(definition['schema'])
+        definition["meta"] = {}
+        typ = definition.get("type")
+        if (
+            (isinstance(typ, (list, tuple, set)) and "dict" in typ) or typ == "dict"
+        ) and ("schema" in definition):
+            _strip_meta(definition["schema"])
 
 
 def is_iterable(obj: Any) -> bool:
@@ -443,7 +498,7 @@ def _nest_coersions(to_wrap: Callable, wrappers: list[Callable]) -> Callable:
 
 def _callable_coersion(coersion: str | Callable, validator: Validator) -> Callable:
     if isinstance(coersion, str):
-        return getattr(validator, '_normalize_coerce_' + coersion)
+        return getattr(validator, "_normalize_coerce_" + coersion)
     return coersion
 
 
@@ -455,16 +510,21 @@ def _define_coercers(container: dict | list, validator: Validator) -> None:
     Note that 'default' & 'allowed' values are also coersed.
     """
     if isinstance(container, dict):
-        if 'coerce' in container:
-            if not isinstance(container['coerce'], str) and is_iterable(container['coerce']):
-                coersions: list[Callable] = [_callable_coersion(coersion, validator) for coersion in container['coerce']]
+        if "coerce" in container:
+            if not isinstance(container["coerce"], str) and is_iterable(
+                container["coerce"]
+            ):
+                coersions: list[Callable] = [
+                    _callable_coersion(coersion, validator)
+                    for coersion in container["coerce"]
+                ]
                 if len(coersions) > 1:
                     coersion: Callable = _nest_coersions(coersions[0], coersions[1:])
                 else:
                     coersion: Callable = coersions[0]
             else:
-                coersion = _callable_coersion(container['coerce'], validator)
-            container['coerce'] = coersion
+                coersion = _callable_coersion(container["coerce"], validator)
+            container["coerce"] = coersion
         container = list(container.values())
     for value in filter(lambda x: isinstance(x, (dict, list)), container):
         _define_coercers(value, validator)
@@ -472,26 +532,34 @@ def _define_coercers(container: dict | list, validator: Validator) -> None:
 
 def _is_list(definition) -> bool:
     """True if the definition is a list."""
-    assert 'type' in definition, 'Schema defined but no type (list or dict) specified. Impossible to resolve.'
-    if isinstance(definition['type'], list):
-        if 'list' in definition['type']:
-            assert 'dict' not in definition['type'], 'Ambiguous schema type specified: Both list and dict defined.'
+    assert (
+        "type" in definition
+    ), "Schema defined but no type (list or dict) specified. Impossible to resolve."
+    if isinstance(definition["type"], list):
+        if "list" in definition["type"]:
+            assert (
+                "dict" not in definition["type"]
+            ), "Ambiguous schema type specified: Both list and dict defined."
             return True
         return False
     # This allows a non-list type, even if it is not a dict to have a schema.
-    return definition['type'] == 'list'
+    return definition["type"] == "list"
 
 
 def _is_dict(definition: dict) -> bool:
     """True if the definition is a dict."""
-    assert 'type' in definition, 'Schema defined but no type (list or dict) specified. Impossible to resolve.'
-    if isinstance(definition['type'], dict):
-        if 'dict' in definition['type']:
-            assert 'list' not in definition['type'], 'Ambiguous schema type specified: Both list and dict defined.'
+    assert (
+        "type" in definition
+    ), "Schema defined but no type (list or dict) specified. Impossible to resolve."
+    if isinstance(definition["type"], dict):
+        if "dict" in definition["type"]:
+            assert (
+                "list" not in definition["type"]
+            ), "Ambiguous schema type specified: Both list and dict defined."
             return True
         return False
     # This allows a non-list type, even if it is not a dict to have a schema.
-    return definition['type'] == 'dict'
+    return definition["type"] == "dict"
 
 
 def _define_structure(definition: dict, validator: Validator) -> dict:
@@ -510,58 +578,70 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
         if _LOG_DEBUG:
             _logger.debug(f"Rules definition pulled from registry '{definition}'.")
         rdef = validator.rules_set_registry.get(definition)  # type: ignore
-        assert rdef is not None, 'No such rules exist in the registry.'
+        assert rdef is not None, "No such rules exist in the registry."
         if _LOG_DEBUG:
             _logger.debug(f"Rules are:\n{pformat(rdef)}.")
     else:
         rdef = definition
     if _LOG_DEBUG:
-        _logger.debug(f'Assessing definition structure {list(rdef.keys())}')
-    if 'schema' in rdef:
-        if isinstance(rdef['schema'], str):
+        _logger.debug(f"Assessing definition structure {list(rdef.keys())}")
+    if "schema" in rdef:
+        if isinstance(rdef["schema"], str):
             if _is_list(rdef):
                 if _LOG_DEBUG:
-                    _logger.debug(f"Rules definition pulled from registry '{rdef['schema']}'.")
-                rdef['schema'] = validator.rules_set_registry.get(rdef['schema'])  # type: ignore
-                assert rdef is not None, 'No such rules exist in the registry.'
+                    _logger.debug(
+                        f"Rules definition pulled from registry '{rdef['schema']}'."
+                    )
+                rdef["schema"] = validator.rules_set_registry.get(rdef["schema"])  # type: ignore
+                assert rdef is not None, "No such rules exist in the registry."
                 if _LOG_DEBUG:
                     _logger.debug(f"Rules are:\n{pformat(rdef)}.")
             elif _is_dict(rdef):
                 if _LOG_DEBUG:
-                    _logger.debug(f"Schema definition pulled from registry '{rdef['schema']}'.")
-                rdef['schema'] = validator.schema_registry.get(rdef['schema'])  # type: ignore
+                    _logger.debug(
+                        f"Schema definition pulled from registry '{rdef['schema']}'."
+                    )
+                rdef["schema"] = validator.schema_registry.get(rdef["schema"])  # type: ignore
                 if _LOG_DEBUG:
-                    _logger.debug(f"Schema is\n{pformat(rdef['schema'], indent=4, sort_dicts=True)}")
+                    _logger.debug(
+                        f"Schema is\n{pformat(rdef['schema'], indent=4, sort_dicts=True)}"
+                    )
             else:
                 _logger.warning("Erroneous 'schema' definition detected. Ignoring.")
-                rdef['schema'] = {}
-        rdef['schema'] = _define_structure(rdef['schema'], validator)
+                rdef["schema"] = {}
+        rdef["schema"] = _define_structure(rdef["schema"], validator)
         if _is_dict(rdef):
-            for key in tuple(rdef['schema'].keys()):
-                rdef['schema'][key] = _define_structure(rdef['schema'][key], validator)
-                if rdef['schema'][key] is None:
-                    del rdef['schema'][key]
-    if 'keysrules' in rdef:
-        rdef['keysrules'] = _define_structure(rdef['keysrules'], validator)
-    if 'valuesrules' in rdef:
-        rdef['valuesrules'] = _define_structure(rdef['valuesrules'], validator)
-    if 'anyof' in rdef or 'oneof' in rdef:
-        key: Literal['anyof', 'oneof'] = ('anyof', 'oneof')['oneof' in rdef]
+            for key in tuple(rdef["schema"].keys()):
+                rdef["schema"][key] = _define_structure(rdef["schema"][key], validator)
+                if rdef["schema"][key] is None:
+                    del rdef["schema"][key]
+    if "keysrules" in rdef:
+        rdef["keysrules"] = _define_structure(rdef["keysrules"], validator)
+    if "valuesrules" in rdef:
+        rdef["valuesrules"] = _define_structure(rdef["valuesrules"], validator)
+    if "anyof" in rdef or "oneof" in rdef:
+        key: Literal["anyof", "oneof"] = ("anyof", "oneof")["oneof" in rdef]
         if _LOG_DEBUG:
-            _logger.debug(f"'{key}' defined:\n{pformat(rdef, indent=4, sort_dicts=True)}")
+            _logger.debug(
+                f"'{key}' defined:\n{pformat(rdef, indent=4, sort_dicts=True)}"
+            )
         one_def = deepcopy(rdef[key])
         del rdef[key]
         rdef.update(choice(one_def))
         rdef = _define_structure(rdef, validator)
         if _LOG_DEBUG:
-            _logger.debug(f"Definition updated to:\n{pformat(rdef, indent=4, sort_dicts=True)}")
+            _logger.debug(
+                f"Definition updated to:\n{pformat(rdef, indent=4, sort_dicts=True)}"
+            )
     # TODO: all_of & none_of ... but not sure how yet
-    if 'items' in rdef:
+    if "items" in rdef:
         if _LOG_DEBUG:
             _logger.debug(f"'items' defined:\n{pformat(rdef['items'])}")
-        rdef['items'] = [_define_structure(item, validator) for item in rdef['items']]
+        rdef["items"] = [_define_structure(item, validator) for item in rdef["items"]]
         if _LOG_DEBUG:
-            _logger.debug(f"Definition items expanded to:\n{pformat(rdef['items'], indent=4, sort_dicts=True)} ")
+            _logger.debug(
+                f"Definition items expanded to:\n{pformat(rdef['items'], indent=4, sort_dicts=True)} "
+            )
     return rdef
 
 
@@ -586,23 +666,27 @@ def _find_dep(schema: dict, validator: Validator, dep: str) -> dict:
         _logger.debug("Found dependency in current schema.")
         return schema[dep]
     assert len(dep) > 0, "'' key must be in schema."
-    if dep[0] == '^':
-        assert len(dep) > 1 and dep[1] != '^', f"Dependency '{dep}' does not exist in schema."
-        if dep == '^':
+    if dep[0] == "^":
+        assert (
+            len(dep) > 1 and dep[1] != "^"
+        ), f"Dependency '{dep}' does not exist in schema."
+        if dep == "^":
             _logger.debug("Corner case dependency key '' in root")
             # Corner case of '' key in the root
             return validator.schema[dep]  # type: ignore
         _logger.debug("Searching from root.")
-        path = dep[1:].split('.')
+        path = dep[1:].split(".")
         lookup_schema = validator.schema  # type: ignore
     else:
         _logger.debug("Searching in current schema.")
-        path = dep.split('.')
+        path = dep.split(".")
         lookup_schema = schema
     for step in path[:-1]:
         assert step in lookup_schema, f"Field '{step}' of '{dep}' not found in schema."
-        assert 'schema' in lookup_schema[step], f"Field '{step}' of '{dep}' is not a sub-schema."
-        lookup_schema = lookup_schema[step]['schema']
+        assert (
+            "schema" in lookup_schema[step]
+        ), f"Field '{step}' of '{dep}' is not a sub-schema."
+        lookup_schema = lookup_schema[step]["schema"]
     _logger.debug("Found dependency.")
     return lookup_schema[path[-1]]
 
@@ -623,23 +707,36 @@ def _generate_deps(schema: dict, validator: Validator) -> None:
     """
     for field, definition in schema.items():
         _logger.debug(f"Checking '{field}' for dependencies.")
-        if 'dependencies' in definition:
+        if "dependencies" in definition:
             _logger.debug(f"'{field}' has a dependencies.")
-            deps = definition['dependencies']
+            deps = definition["dependencies"]
             if isinstance(deps, str):
-                definition['meta'].setdefault('deps', []).append((_find_dep(schema, validator, deps), None))
+                definition["meta"].setdefault("deps", []).append(
+                    (_find_dep(schema, validator, deps), None)
+                )
             elif isinstance(deps, (list, tuple)):
                 for dep in deps:
-                    definition['meta'].setdefault('deps', []).append((_find_dep(schema, validator, dep), None))
+                    definition["meta"].setdefault("deps", []).append(
+                        (_find_dep(schema, validator, dep), None)
+                    )
             elif isinstance(deps, dict):
                 for dep, allowed in deps.items():
-                    definition['meta'].setdefault('deps', []).append((_find_dep(schema, validator, dep), allowed))
-        typ = definition.get('type')
-        if ((isinstance(typ, (list, tuple, set)) and 'dict' in typ) or typ == 'dict') and ('schema' in definition):
-            _generate_deps(definition['schema'], validator)
+                    definition["meta"].setdefault("deps", []).append(
+                        (_find_dep(schema, validator, dep), allowed)
+                    )
+        typ = definition.get("type")
+        if (
+            (isinstance(typ, (list, tuple, set)) and "dict" in typ) or typ == "dict"
+        ) and ("schema" in definition):
+            _generate_deps(definition["schema"], validator)
 
 
-def generate(validator: Validator, num: int = 1000, rnd_seed: int | None = None, validate: bool = False) -> list[dict[Any, Any]]:
+def generate(
+    validator: Validator,
+    num: int = 1000,
+    rnd_seed: int | None = None,
+    validate: bool = False,
+) -> list[dict[Any, Any]]:
     """Generate data conformant to validator schema.
 
     Args
@@ -659,11 +756,15 @@ def generate(validator: Validator, num: int = 1000, rnd_seed: int | None = None,
     schema: dict = {k: _define_structure(deepcopy(v), mock_validator) for k, v in mock_validator.schema.items()}  # type: ignore
     _strip_meta(schema)
     _generate_deps(schema, mock_validator)
-    _rnd_seed: int = randint(-2**31, 2**31 - 1) if rnd_seed is None else rnd_seed
+    _rnd_seed: int = randint(-(2**31), 2**31 - 1) if rnd_seed is None else rnd_seed
     _logger.info(f"Generating data with rnd_seed = {_rnd_seed}.")
     if _LOG_DEBUG:
-        _logger.debug(f"Pre-customized schema:\n{pformat(schema, indent=4, width=120, sort_dicts=True)}")
-    data: list[dict[Any, Any]] = [_generate(mock_validator, schema, _rnd_seed + i, validate) for i in range(num)]
+        _logger.debug(
+            f"Pre-customized schema:\n{pformat(schema, indent=4, width=120, sort_dicts=True)}"
+        )
+    data: list[dict[Any, Any]] = [
+        _generate(mock_validator, schema, _rnd_seed + i, validate) for i in range(num)
+    ]
     assert len(data) == num
     return data
 
@@ -684,23 +785,25 @@ def _define_field(definition: dict, require_all: bool) -> None:
     definition: The definition of the field.
     require_all: validator.require_all.
     """
-    def_req: bool = definition.get('required', False)
+    def_req: bool = definition.get("required", False)
     required: bool = def_req or require_all or (not def_req and not _rare_event())
-    readonly: bool = definition.get('readonly', False) and not ('default' in definition or 'default_setter' in definition)
+    readonly: bool = definition.get("readonly", False) and not (
+        "default" in definition or "default_setter" in definition
+    )
     define: bool = required and not readonly
-    if 'dependencies' in definition and define:
+    if "dependencies" in definition and define:
         # TODO: _ are the allowed values. Cannot know these at this time.
         # Need a post processing step to check and then remove this dependent field if the
         # criteria are not met.
         if _LOG_DEBUG:
             _logger.debug(f"Definition dependencies: {definition['meta']['deps']}")
-        for dep, _ in definition['meta']['deps']:
-            if dep['meta'].get('defined') is None:
+        for dep, _ in definition["meta"]["deps"]:
+            if dep["meta"].get("defined") is None:
                 _define_field(dep, require_all)
-            if not dep['meta']['defined']:
+            if not dep["meta"]["defined"]:
                 define = False
                 break
-    definition['meta']['defined'] = define
+    definition["meta"]["defined"] = define
 
 
 def _customize_schema(schema: dict, require_all=False) -> dict:
@@ -716,17 +819,21 @@ def _customize_schema(schema: dict, require_all=False) -> dict:
     schema with optional fields randomly removed.
     """
     for field, definition in tuple(schema.items()):
-        if definition['meta'].get('defined') is None:
+        if definition["meta"].get("defined") is None:
             _define_field(definition, require_all)
-        if not definition['meta'].get('defined'):
+        if not definition["meta"].get("defined"):
             del schema[field]
-        typ = definition.get('type')
-        if ((isinstance(typ, (list, tuple, set)) and 'dict' in typ) or typ == 'dict') and ('schema' in definition):
-            _customize_schema(definition['schema'], require_all)
+        typ = definition.get("type")
+        if (
+            (isinstance(typ, (list, tuple, set)) and "dict" in typ) or typ == "dict"
+        ) and ("schema" in definition):
+            _customize_schema(definition["schema"], require_all)
     return schema
 
 
-def _generate(validator: Validator, schema: dict, rnd_seed=None, validate: bool = False) -> dict:
+def _generate(
+    validator: Validator, schema: dict, rnd_seed=None, validate: bool = False
+) -> dict:
     """Generate a single record that conforms to validator schema.
 
     Args
@@ -745,13 +852,21 @@ def _generate(validator: Validator, schema: dict, rnd_seed=None, validate: bool 
     custom_schema = _customize_schema(deepcopy(schema), validator.require_all)  # type: ignore
     for field, definition in custom_schema.items():
         if definition is not None:
-            definition.setdefault('type', TYPES)
+            definition.setdefault("type", TYPES)
             if _LOG_DEBUG:
-                _logger.debug(f"Validation rules for '{field}':\n{pformat(definition, indent=4, sort_dicts=True)}.")
-            _type: str = definition['type'] if not isinstance(definition['type'], list) else choice(definition['type'])
+                _logger.debug(
+                    f"Validation rules for '{field}':\n{pformat(definition, indent=4, sort_dicts=True)}."
+                )
+            _type: str = (
+                definition["type"]
+                if not isinstance(definition["type"], list)
+                else choice(definition["type"])
+            )
             record[field] = TYPE_GENERATION[_type](definition)
             if _LOG_DEBUG:
-                _logger.debug(f"Generated value for field '{field}':\n{pformat(record[field], indent=4, sort_dicts=True)}.")
+                _logger.debug(
+                    f"Generated value for field '{field}':\n{pformat(record[field], indent=4, sort_dicts=True)}."
+                )
         else:
             _logger.debug(f"'{field}' not required to be defined or readonly.")
 
