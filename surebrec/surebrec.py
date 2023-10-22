@@ -74,7 +74,7 @@ class Limits(TypedDict):
 
     general: dict[
         Literal[
-            "rare_events_one_in_x", "max_nested_containers", "random_schema_maxlength"
+            "rare_events_one_in_x", "max_nested_containers", "random_schema_maxlength", "required_one_in_x"
         ],
         int,
     ]
@@ -95,7 +95,8 @@ class Limits(TypedDict):
 # LIMITS defines the limits of unbounded configurations.
 # NOTE: That the 'number' type inherits from 'float' or 'int' as appropriate.
 # In the 'general' section:
-#   'rare_events_one_in_x': Chance of selecting a 'default', 'empty', 'null'.
+#   'rare_events_one_in_x': Chance of selecting a 'empty', 'null'.
+#   'required_one_in_x': Chance of selecting a 'not required' field.
 #   'max_nested_containers': When randomly generating a schema the max depth of nested containers.
 #   'random_schema_maxlength': The max number of fields and length or sequences in a random schema unless otherwise specified.
 MAX_LENGTH = 32
@@ -103,6 +104,7 @@ MAX_ELEMENTS = 128
 LIMITS: Limits = {
     "general": {
         "rare_events_one_in_x": 1000,
+        "required_one_in_x": 2,
         "max_nested_containers": 3,
         "random_schema_maxlength": 16,
     },
@@ -139,6 +141,11 @@ def _rare_event() -> bool:
     return not randint(0, LIMITS["general"]["rare_events_one_in_x"] - 1)
 
 
+def _required() -> bool:
+    """True if a rare event occurs."""
+    return not randint(0, LIMITS["general"]["required_one_in_x"] - 1)
+
+
 def _generate_base(constraints: dict) -> tuple[bool, Any]:
     """Common generation operations for every type.
 
@@ -153,6 +160,8 @@ def _generate_base(constraints: dict) -> tuple[bool, Any]:
     """
     coerce: Callable = constraints.get("coerce", lambda x: x)
     if "allowed" in constraints:
+        if not constraints["allowed"]:
+            raise ValueError("Allowed values list is empty.")
         _logger.debug("Value chosen from allowed values.")
         return (True, coerce(choice(constraints["allowed"])))
     if "default" in constraints and _rare_event():
@@ -246,7 +255,7 @@ def _generate_dict(constraints: dict, depth: int = 0) -> dict | None:
         required: bool = (
             definition.get("required", False)
             or schema.get("require_all", False)
-            or (not definition.get("required", False) and not _rare_event())
+            or (not definition.get("required", False) and _required())
             or definition.get("meta", {}).get("defined", False)
         )
         readonly: bool = definition.get("readonly", False) and not (
@@ -786,7 +795,7 @@ def _define_field(definition: dict, require_all: bool) -> None:
     require_all: validator.require_all.
     """
     def_req: bool = definition.get("required", False)
-    required: bool = def_req or require_all or (not def_req and not _rare_event())
+    required: bool = def_req or require_all or (not def_req and _required())
     readonly: bool = definition.get("readonly", False) and not (
         "default" in definition or "default_setter" in definition
     )
