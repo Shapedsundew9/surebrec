@@ -8,6 +8,7 @@ from egp_types.xgc_validator import (
     LGC_json_load_entry_validator,
     LGC_json_dump_entry_validator,
     gms_entry_validator,
+    graph_validator
 )
 from pypgtable.validators import (
     database_config_validator,
@@ -37,8 +38,12 @@ def test_LGC_entry_validator() -> None:
     generate(LGC_entry_validator, 100, validate=True)
 
 
-def test_GGC_entry_validator() -> None:
+def test_gGC_entry_validator() -> None:
     generate(gGC_entry_validator, 100, validate=True)
+
+
+def test_graph_validator() -> None:
+    generate(graph_validator, 100, validate=True)
 
 
 def test_database_config_validator() -> None:

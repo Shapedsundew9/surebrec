@@ -40,6 +40,9 @@ from uuid import UUID
 
 from cerberus import Validator
 from exrex import getone
+from numpy.random import normal
+from numpy.random import seed as np_seed
+
 
 _logger: Logger = getLogger(__name__)
 _logger.addHandler(NullHandler())
@@ -69,15 +72,19 @@ class ContainerLimits(TypedDict):
     maxelements: int
 
 
+class GeneralLimits(TypedDict):
+    """General limits for generation of data."""
+
+    rare_events_one_in_x: int
+    required_one_in_x: int
+    max_nested_containers: int
+    random_schema_maxlength: int
+    random_length_stddev: float 
+
 class Limits(TypedDict):
     """Limits for generation of data."""
 
-    general: dict[
-        Literal[
-            "rare_events_one_in_x", "max_nested_containers", "random_schema_maxlength", "required_one_in_x"
-        ],
-        int,
-    ]
+    general: GeneralLimits
     boolean: dict[LiteralString, Any]
     binary: SequenceLimits
     date: ValueLimits[date]
@@ -107,6 +114,7 @@ LIMITS: Limits = {
         "required_one_in_x": 2,
         "max_nested_containers": 3,
         "random_schema_maxlength": 16,
+        "random_length_stddev": 0.25
     },
     "boolean": {},
     "binary": {"maxlength": MAX_LENGTH},
@@ -134,6 +142,14 @@ DEFAULT_KEYSRULES: dict[str, list[str]] = {
         "uuid",
     ],
 }
+
+
+def _get_length(minlength: int, maxlength: int) -> int:
+    """Return a random length between minlength and maxlength with a gaussian distribution."""
+    if maxlength == minlength:
+        return minlength
+    delta: int = maxlength - minlength
+    return (abs(int(normal(0, delta * LIMITS["general"]["random_length_stddev"]))) % delta) + minlength
 
 
 def _rare_event() -> bool:
@@ -192,7 +208,7 @@ def _generate_binary(constraints: dict, _: int = 0) -> bytes | bytearray | None:
     minlength: int = constraints.get("minlength", 0)
     maxlength: int = constraints.get("maxlength", LIMITS["binary"]["maxlength"])
     return retype(
-        bytearray(getrandbits(8) for _ in range(randint(minlength, maxlength)))
+        bytearray(getrandbits(8) for _ in range(_get_length(minlength, maxlength)))
     )
 
 
@@ -327,7 +343,7 @@ def _generate_list(constraints: dict, depth: int = 0) -> list | None:
     maxlength: int = constraints.get(
         "maxlength", LIMITS["general"]["random_schema_maxlength"]
     )
-    num: int = randint(minlength, maxlength)
+    num: int = _get_length(minlength, maxlength)
     if _LOG_DEBUG:
         _logger.debug(f"Randomly choosing {num} elements.")
     for _ in range(num):
@@ -363,7 +379,7 @@ def _generate_set(constraints: dict, depth: int = 0) -> set | None:
         else _random_list_schema(depth + 1, True)
     )
     _set: set[Any] = set()
-    for _ in range(randint(minlength, maxlength)):
+    for _ in range(_get_length(minlength, maxlength)):
         _type: str = (
             schema["type"]
             if not isinstance(schema["type"], list)
@@ -386,7 +402,7 @@ def _generate_string(constraints: dict, _: int = 0) -> str | None:
         return getone(constraints["regex"])
     minlength: int = constraints.get("minlength", 0)
     maxlength: int = constraints.get("maxlength", LIMITS["string"]["maxlength"])
-    return "".join(choices(printable, k=randint(minlength, maxlength)))
+    return "".join(choices(printable, k=_get_length(minlength, maxlength)))
 
 
 def _generate_uuid(constraints: dict, _: int = 0) -> UUID | None:
@@ -447,7 +463,7 @@ def _random_dict_schema(
         keysrules["minlength"] = 4
         keysrules["maxlength"] = LIMITS["general"]["random_schema_maxlength"]
     keys: list[Any] = []
-    for _ in range(randint(minlength, maxlength)):
+    for _ in range(_get_length(minlength, maxlength)):
         _type: str = (
             keysrules["type"]
             if not isinstance(keysrules["type"], list)
@@ -765,7 +781,7 @@ def generate(
     schema: dict = {k: _define_structure(deepcopy(v), mock_validator) for k, v in mock_validator.schema.items()}  # type: ignore
     _strip_meta(schema)
     _generate_deps(schema, mock_validator)
-    _rnd_seed: int = randint(-(2**31), 2**31 - 1) if rnd_seed is None else rnd_seed
+    _rnd_seed: int = randint(0, 2**31 - 1) if rnd_seed is None else abs(rnd_seed)
     _logger.info(f"Generating data with rnd_seed = {_rnd_seed}.")
     if _LOG_DEBUG:
         _logger.debug(
@@ -858,6 +874,7 @@ def _generate(
     """
     record: dict[Any, Any] = {}
     seed(rnd_seed)
+    np_seed(rnd_seed)
     custom_schema = _customize_schema(deepcopy(schema), validator.require_all)  # type: ignore
     for field, definition in custom_schema.items():
         if definition is not None:
@@ -881,6 +898,9 @@ def _generate(
 
     if validate:
         result: bool = validator.validate(record)  # type: ignore
-        assert result, f"Generated data failed validation! {validator.errors}. Report this bug!"  # type: ignore
+        if not result:
+            message: str = f"Generated data failed validation! {validator.error_str()}. Report this bug!"  # type: ignore
+            _logger.debug(message)
+        assert result
 
     return record
