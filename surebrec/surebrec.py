@@ -35,6 +35,7 @@ from typing import (
     Type,
     TypedDict,
     TypeVar,
+    Hashable
 )
 from uuid import UUID
 
@@ -610,9 +611,12 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
         rdef = definition
     if _LOG_DEBUG:
         _logger.debug(f"Assessing definition structure {list(rdef.keys())}")
+
+    # TODO: Need to consider recursive oneof_* definitions. Presently we choose a random oneof_* definition
+    # and then expand it. This is not correct. We choose from the oneof_* for each item in the schema.
     if "schema" in rdef:
-        if isinstance(rdef["schema"], str):
-            if _is_list(rdef):
+        if _is_list(rdef):
+            if isinstance(rdef["schema"], str):
                 if _LOG_DEBUG:
                     _logger.debug(
                         f"Rules definition pulled from registry '{rdef['schema']}'."
@@ -621,7 +625,9 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
                 assert rdef is not None, "No such rules exist in the registry."
                 if _LOG_DEBUG:
                     _logger.debug(f"Rules are:\n{pformat(rdef)}.")
-            elif _is_dict(rdef):
+            rdef["schema"] = _define_structure(rdef["schema"], validator)
+        elif _is_dict(rdef):
+            if isinstance(rdef["schema"], str):
                 if _LOG_DEBUG:
                     _logger.debug(
                         f"Schema definition pulled from registry '{rdef['schema']}'."
@@ -631,19 +637,49 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
                     _logger.debug(
                         f"Schema is\n{pformat(rdef['schema'], indent=4, sort_dicts=True)}"
                     )
-            else:
-                _logger.warning("Erroneous 'schema' definition detected. Ignoring.")
-                rdef["schema"] = {}
-        rdef["schema"] = _define_structure(rdef["schema"], validator)
-        if _is_dict(rdef):
+            rdef["schema"] = _define_structure(rdef["schema"], validator)
             for key in tuple(rdef["schema"].keys()):
                 rdef["schema"][key] = _define_structure(rdef["schema"][key], validator)
                 if rdef["schema"][key] is None:
                     del rdef["schema"][key]
+
+    # Dynamic definition of either keyrules or valuerules
+    if "valuesrules" in rdef and "keysrules" in rdef:
+        _logger.debug("keysrules & valuesrules defined for dict.")
+        if (any(k.startswith("oneof") or k.startswith("anyof") for k in rdef["keysrules"]) or
+                any(k.startswith("oneof") or k.startswith("anyof") for k in rdef["valuesrules"])):
+            _logger.debug("Dynamic definition of keysrules & valuesrules.")
+            # If there are keysrules or valuesrules then there may be multiple items in the schema.
+            # each of which must fit these rules not an instance of them.
+            # First we determine the length of the schema.
+            minlength: int = definition.get("minlength", 0)
+            maxlength: int = definition.get("maxlength", LIMITS["general"]["random_schema_maxlength"])
+            if "schema" not in rdef:
+                rdef["schema"] = {}
+            for _ in range(_get_length(minlength, maxlength)):
+                keysrules = _define_structure(rdef["keysrules"], validator)
+                keysrules.update({"required": True})
+                t_validator = Validator({"key": keysrules})  # type: ignore
+                gkey = generate(t_validator, 1, randint(0, 2**31 - 1), False)[0].get("key")
+                if not isinstance(gkey, Hashable) or gkey is None:
+                    raise ValueError(f"Generated key '{gkey}' is not hashable. Check 'keyrules' definition.")
+                rdef["schema"][gkey] = _define_structure(deepcopy(rdef["valuesrules"]), validator)
+            del rdef["keysrules"]
+            del rdef["valuesrules"]
+
+    # Definitions of keys rules & valuesrules are static
     if "keysrules" in rdef:
         rdef["keysrules"] = _define_structure(rdef["keysrules"], validator)
     if "valuesrules" in rdef:
         rdef["valuesrules"] = _define_structure(rdef["valuesrules"], validator)
+
+    # Select a value from anyof_*, oneof_* rules
+    for k in rdef:
+        if k.startswith("anyof_") or k.startswith("oneof_"):
+            rdef[k[6:]] = choice(rdef[k])
+            del rdef[k]
+
+    # Pure anyof & oneof values are merged into rdef
     if "anyof" in rdef or "oneof" in rdef:
         key: Literal["anyof", "oneof"] = ("anyof", "oneof")["oneof" in rdef]
         if _LOG_DEBUG:
@@ -658,6 +694,7 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
             _logger.debug(
                 f"Definition updated to:\n{pformat(rdef, indent=4, sort_dicts=True)}"
             )
+
     # TODO: all_of & none_of ... but not sure how yet
     if "items" in rdef:
         if _LOG_DEBUG:

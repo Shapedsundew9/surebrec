@@ -1,3 +1,4 @@
+import pytest
 from logging import NullHandler, getLogger, Logger
 from pprint import pformat
 from typing import Any
@@ -7,9 +8,9 @@ from egp_types.xgc_validator import (
     LGC_entry_validator,
     LGC_json_load_entry_validator,
     LGC_json_dump_entry_validator,
-    gms_entry_validator,
-    graph_validator
+    gms_entry_validator
 )
+from egp_types.graph_validators import graph_validator, limited_igraph_validator
 from pypgtable.validators import (
     database_config_validator,
     raw_table_column_config_validator,
@@ -22,40 +23,54 @@ _logger: Logger = getLogger(__name__)
 _logger.addHandler(NullHandler())
 
 
-def test_LGC_json_load_entry_validator() -> None:
-    generate(LGC_json_load_entry_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_LGC_json_load_entry_validator(_) -> None:
+    generate(LGC_json_load_entry_validator, 10, validate=True)
 
 
-def test_LGC_json_dump_entry_validator() -> None:
-    generate(LGC_json_dump_entry_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_LGC_json_dump_entry_validator(_) -> None:
+    generate(LGC_json_dump_entry_validator, 10, validate=True)
 
 
-def test_gms_entry_validator() -> None:
-    generate(gms_entry_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_gms_entry_validator(_) -> None:
+    generate(gms_entry_validator, 10, validate=True)
 
 
-def test_LGC_entry_validator() -> None:
-    generate(LGC_entry_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_LGC_entry_validator(_) -> None:
+    generate(LGC_entry_validator, 10, validate=True)
 
 
-def test_gGC_entry_validator() -> None:
-    generate(gGC_entry_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_gGC_entry_validator(_) -> None:
+    generate(gGC_entry_validator, 10, validate=True)
 
 
-def test_graph_validator() -> None:
-    generate(graph_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_graph_validator(_) -> None:
+    generate(graph_validator, 10, validate=True)
 
 
-def test_database_config_validator() -> None:
-    generate(database_config_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_igraph_validator(_) -> None:
+    generate(limited_igraph_validator, 1, validate=True)
 
 
-def test_raw_table_column_config_validator() -> None:
-    generate(raw_table_column_config_validator, 100, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_database_config_validator(_) -> None:
+    generate(database_config_validator, 10, validate=True)
 
 
-def test_raw_table_config_validator() -> None:
-    generate(raw_table_config_validator, 10, validate=True)
+@pytest.mark.parametrize("_", range(10))
+def test_raw_table_column_config_validator(_) -> None:
+    generate(raw_table_column_config_validator, 10, validate=True)
+
+
+@pytest.mark.parametrize("_", range(10))
+def test_raw_table_config_validator(_) -> None:
+    generate(raw_table_config_validator, 1, validate=True)
 
 
 def test_random_seed_1() -> None:
