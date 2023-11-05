@@ -796,7 +796,8 @@ def _generate_deps(schema: dict, validator: Validator) -> None:
 def generate(
     validator: Validator,
     num: int = 1000,
-    rnd_seed: int | None = None,
+    s_seed: int | None = None,
+    v_seed: int | None = None,
     validate: bool = False,
 ) -> list[dict[Any, Any]]:
     """Generate data conformant to validator schema.
@@ -805,27 +806,31 @@ def generate(
     ----
     validator: A Cerberus Validator
     num: The number of records to return
-    rnd_seed: Random number generater seed for reproducability
+    s_seed: Random number generater seed for structure reproducability
+    v_seed: Random number generater seed for value reproducability
     validate: User the supplied validator to validate the output.
 
     Returns
     -------
     list of records that comply with validator.
     """
+    _s_seed: int = randint(0, 2**31 - 1) if s_seed is None else abs(s_seed)
+    _v_seed: int = randint(0, 2**31 - 1) if v_seed is None else abs(v_seed)
+    _logger.info(f"Generating structure with s_seed = {_s_seed}.")
+    seed(_s_seed)
+    np_seed(_s_seed)
     mock_validator: Validator = deepcopy(validator)
     _strip_check_with(list(mock_validator.schema.values()))  # type: ignore
     _define_coercers(list(mock_validator.schema.values()), mock_validator)  # type: ignore
     schema: dict = {k: _define_structure(deepcopy(v), mock_validator) for k, v in mock_validator.schema.items()}  # type: ignore
     _strip_meta(schema)
     _generate_deps(schema, mock_validator)
-    _rnd_seed: int = randint(0, 2**31 - 1) if rnd_seed is None else abs(rnd_seed)
-    _logger.info(f"Generating data with rnd_seed = {_rnd_seed}.")
     if _LOG_DEBUG:
         _logger.debug(
             f"Pre-customized schema:\n{pformat(schema, indent=4, width=120, sort_dicts=True)}"
         )
     data: list[dict[Any, Any]] = [
-        _generate(mock_validator, schema, _rnd_seed + i, validate) for i in range(num)
+        _generate(mock_validator, schema, _v_seed + i, validate) for i in range(num)
     ]
     assert len(data) == num
     return data
@@ -894,7 +899,7 @@ def _customize_schema(schema: dict, require_all=False) -> dict:
 
 
 def _generate(
-    validator: Validator, schema: dict, rnd_seed=None, validate: bool = False
+    validator: Validator, schema: dict, v_seed: int, validate: bool = False
 ) -> dict:
     """Generate a single record that conforms to validator schema.
 
@@ -902,16 +907,16 @@ def _generate(
     ----
     validator: A Cerberus Validator
     schema: The resolved schema from the validator.
-    rnd_seed: Random number generater seed for reproducability
     validate: User the supplied validator to validate the output.
 
     Returns
     -------
     A record that conforms to validator schema.
     """
+    seed(v_seed)
+    np_seed(v_seed)
+    _logger.info(f"Generating values with v_seed = {v_seed}.")
     record: dict[Any, Any] = {}
-    seed(rnd_seed)
-    np_seed(rnd_seed)
     custom_schema = _customize_schema(deepcopy(schema), validator.require_all)  # type: ignore
     for field, definition in custom_schema.items():
         if definition is not None:
@@ -938,6 +943,7 @@ def _generate(
         if not result:
             message: str = f"Generated data failed validation! {validator.error_str()}. Report this bug!"  # type: ignore
             _logger.debug(message)
+            _logger.debug(f"Generated data:\n{pformat(record, indent=4, sort_dicts=True)}.")
         assert result
 
     return record
