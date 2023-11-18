@@ -660,7 +660,7 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
                 keysrules = _define_structure(rdef["keysrules"], validator)
                 keysrules.update({"required": True})
                 t_validator = Validator({"key": keysrules})  # type: ignore
-                gkey = generate(t_validator, 1, randint(0, 2**31 - 1), False)[0].get("key")
+                gkey = generate(t_validator, 1, randint(0, 2**31 - 1), randint(0, 2**31 - 1), False)[0].get("key")
                 if not isinstance(gkey, Hashable) or gkey is None:
                     raise ValueError(f"Generated key '{gkey}' is not hashable. Check 'keyrules' definition.")
                 rdef["schema"][gkey] = _define_structure(deepcopy(rdef["valuesrules"]), validator)
@@ -942,8 +942,8 @@ def _generate(
         result: bool = validator.validate(record)  # type: ignore
         if not result:
             message: str = f"Generated data failed validation! {validator.error_str()}. Report this bug!"  # type: ignore
-            _logger.debug(message)
-            _logger.debug(f"Generated data:\n{pformat(record, indent=4, sort_dicts=True)}.")
+            _logger.error(message)
+            _logger.error(f"Generated data:\n{pformat(record, indent=4, sort_dicts=True)}.")
         assert result
 
     return record
