@@ -327,8 +327,8 @@ def _generate_list(constraints: dict, depth: int = 0) -> list | None:
         _logger.debug("list generated from item constraints")
         for schema in constraints["items"]:
             _type: str = (
-                schema["type"]
-                if not isinstance(schema["type"], list)
+                schema.get("type", "string")
+                if not isinstance(schema.get("type", "string"), list)
                 else choice(schema["type"])
             )
             _list.append(TYPE_GENERATION[_type](schema, depth + 1))
