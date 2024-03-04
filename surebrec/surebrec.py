@@ -35,7 +35,7 @@ from typing import (
     Type,
     TypedDict,
     TypeVar,
-    Hashable
+    Hashable,
 )
 from uuid import UUID
 
@@ -80,7 +80,8 @@ class GeneralLimits(TypedDict):
     required_one_in_x: int
     max_nested_containers: int
     random_schema_maxlength: int
-    random_length_stddev: float 
+    random_length_stddev: float
+
 
 class Limits(TypedDict):
     """Limits for generation of data."""
@@ -115,7 +116,7 @@ LIMITS: Limits = {
         "required_one_in_x": 2,
         "max_nested_containers": 3,
         "random_schema_maxlength": 16,
-        "random_length_stddev": 0.25
+        "random_length_stddev": 0.25,
     },
     "boolean": {},
     "binary": {"maxlength": MAX_LENGTH},
@@ -150,7 +151,9 @@ def _get_length(minlength: int, maxlength: int) -> int:
     if maxlength == minlength:
         return minlength
     delta: int = maxlength - minlength
-    return (abs(int(normal(0, delta * LIMITS["general"]["random_length_stddev"]))) % delta) + minlength
+    return (
+        abs(int(normal(0, delta * LIMITS["general"]["random_length_stddev"]))) % delta
+    ) + minlength
 
 
 def _rare_event() -> bool:
@@ -646,24 +649,39 @@ def _define_structure(definition: dict, validator: Validator) -> dict:
     # Dynamic definition of either keyrules or valuerules
     if "valuesrules" in rdef and "keysrules" in rdef:
         _logger.debug("keysrules & valuesrules defined for dict.")
-        if (any(k.startswith("oneof") or k.startswith("anyof") for k in rdef["keysrules"]) or
-                any(k.startswith("oneof") or k.startswith("anyof") for k in rdef["valuesrules"])):
+        if any(
+            k.startswith("oneof") or k.startswith("anyof") for k in rdef["keysrules"]
+        ) or any(
+            k.startswith("oneof") or k.startswith("anyof") for k in rdef["valuesrules"]
+        ):
             _logger.debug("Dynamic definition of keysrules & valuesrules.")
             # If there are keysrules or valuesrules then there may be multiple items in the schema.
             # each of which must fit these rules not an instance of them.
             # First we determine the length of the schema.
             minlength: int = definition.get("minlength", 0)
-            maxlength: int = definition.get("maxlength", LIMITS["general"]["random_schema_maxlength"])
+            maxlength: int = definition.get(
+                "maxlength", LIMITS["general"]["random_schema_maxlength"]
+            )
             if "schema" not in rdef:
                 rdef["schema"] = {}
             for _ in range(_get_length(minlength, maxlength)):
                 keysrules = _define_structure(rdef["keysrules"], validator)
                 keysrules.update({"required": True})
                 t_validator = Validator({"key": keysrules})  # type: ignore
-                gkey = generate(t_validator, 1, randint(0, 2**31 - 1), randint(0, 2**31 - 1), False)[0].get("key")
+                gkey = generate(
+                    t_validator,
+                    1,
+                    randint(0, 2**31 - 1),
+                    randint(0, 2**31 - 1),
+                    False,
+                )[0].get("key")
                 if not isinstance(gkey, Hashable) or gkey is None:
-                    raise ValueError(f"Generated key '{gkey}' is not hashable. Check 'keyrules' definition.")
-                rdef["schema"][gkey] = _define_structure(deepcopy(rdef["valuesrules"]), validator)
+                    raise ValueError(
+                        f"Generated key '{gkey}' is not hashable. Check 'keyrules' definition."
+                    )
+                rdef["schema"][gkey] = _define_structure(
+                    deepcopy(rdef["valuesrules"]), validator
+                )
             del rdef["keysrules"]
             del rdef["valuesrules"]
 
@@ -943,7 +961,9 @@ def _generate(
         if not result:
             message: str = f"Generated data failed validation! {validator.error_str()}. Report this bug!"  # type: ignore
             _logger.error(message)
-            _logger.error(f"Generated data:\n{pformat(record, indent=4, sort_dicts=True)}.")
+            _logger.error(
+                f"Generated data:\n{pformat(record, indent=4, sort_dicts=True)}."
+            )
         assert result
 
     return record
